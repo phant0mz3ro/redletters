@@ -1,5 +1,9 @@
 // Imperative engine for the book: page layout, page-turn animation and the writing quill.
 const NAMES = ['redhead', 'jughead'];
+const DISPLAY_NAMES = {
+  redhead: 'Red',
+  jughead: 'Dan',
+};
 
 export function initBook({ letters, me, post }) {
   const $ = (id) => document.getElementById(id);
@@ -39,13 +43,14 @@ export function initBook({ letters, me, post }) {
   }
   function header(a, d) {
     const name = NAMES[a];
+    const label = DISPLAY_NAMES[name] || name;
     const hd = h('div', 'hd'), ic = h('div', 'ico ' + (a === 1 ? 'a2' : 'a1')), w = h('div', 'who');
     const img = document.createElement('img');
     img.src = '/avatars/' + name + '.jpg';
-    img.alt = name;
-    img.onerror = () => { img.remove(); ic.textContent = name[0].toUpperCase(); };
+    img.alt = label;
+    img.onerror = () => { img.remove(); ic.textContent = label[0].toUpperCase(); };
     ic.appendChild(img);
-    w.appendChild(h('b', null, name));
+    w.appendChild(h('b', null, label));
     w.appendChild(h('small', null, d));
     hd.appendChild(ic);
     hd.appendChild(w);
@@ -62,6 +67,7 @@ export function initBook({ letters, me, post }) {
   function fill(el, i) {
     el.innerHTML = '';
     el.classList.remove('empty', 'cover');
+    delete el.dataset.editing;
     if (i < 0 || i >= pages.length || pages[i].none) { el.classList.add('empty'); return; }
     const p = pages[i];
     if (p.cover) {
@@ -72,6 +78,7 @@ export function initBook({ letters, me, post }) {
     el.appendChild(decor(i));
     if (p.blank) {
       if (editing) {
+        el.dataset.editing = 'true';
         const t = h('div', 'txt');
         t.contentEditable = 'true';
         t.dataset.ph = 'Dearest friend…';
@@ -182,13 +189,27 @@ export function initBook({ letters, me, post }) {
     if (e.key === 'ArrowRight') go(1);
     if (e.key === 'ArrowLeft') go(-1);
   });
-  let sx = null;
-  on(document, 'touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
-  on(document, 'touchend', (e) => {
-    if (sx === null || editing) return;
-    const dx = e.changedTouches[0].clientX - sx;
+ let sx = null, sy = null;
+
+  on(book, 'pointerdown', (e) => {
+    if (editing || busy) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('button, select, input, [contenteditable]')) return;
+    sx = e.clientX;
+    sy = e.clientY;
+  });
+
+  on(document, 'pointerup', (e) => {
+    if (sx === null) return;
+    const dx = e.clientX - sx;
+    const dy = e.clientY - sy;
     sx = null;
-    if (Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
+    sy = null;
+    if (editing || busy) return;
+
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) {
+      go(dx < 0 ? 1 : -1);
+    }
   });
   on(document, 'input', (e) => { if (e.target.id === 'ed') scratch(); });
   on(document, 'selectionchange', placeQuill);
